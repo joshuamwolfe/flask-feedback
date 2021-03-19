@@ -1,0 +1,64 @@
+-------------------------------------------------------------------
+<script src="https://unpkg.com/jquery"></script>
+<script src="https://unpkg.com/axios/dist/axios.js"></script>
+<script src="/static/scripts.js"></script>
+-------------------------------------------------------------------
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>
+		Flask Feedback &ndash; {% block title %}{% endblock %}
+	</title>
+	<link rel="stylesheet" href="https://unpkg.com/bootstrap/dist/css/bootstrap.css">
+	<link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+	<div class="container mt-5">
+		{% for msg in get_flashed_messages() %}
+		<div class="alert alert-info">{{ msg }}</div>
+		{% endfor %} {% block content %}
+		<!-- put the content here -->
+		{% endblock %}
+	</div>
+
+	<script src="https://unpkg.com/jquery"></script>
+	<script src="/static/main.js"></script>
+</body>
+
+</html>
+--------------------------------------------------------------------------------
+from flask import Flask, url_for, render_template, redirect, flash, jsonify, request
+from flask_debugtoolbar import DebugToolbarExtension
+from models import db, connect_db, User
+
+
+# from forms import AddPetForm, EditPetForm
+
+app = Flask(__name__)
+
+app.config["SECRET_KEY"] = "abcdef"
+app.config["DEBUG_TB_INTERCEPT_REDIRECTS"] = False
+app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql:///cupcakes"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["DEBUG_TB_INTERCEPT_REDIRECTS"] = False
+
+connect_db(app)
+--------------------------------------------------------------------------------
+    def serialize(self):
+        """Serialize User."""
+        return {
+            "username": self.username,
+            "password": self.password,
+            "email": self.email,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+        }
+
+    def __rep__(self):
+        message = f"<User {self.id} email={self.email} first_name={self.first_name} last_name={self.last_name}>"
+        return message
+--------------------------------------------------------------------------------

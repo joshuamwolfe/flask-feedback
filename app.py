@@ -1,41 +1,181 @@
-from flask import Flask, url_for, render_template, redirect, flash, jsonify, request
+"""Feedback Flask app."""
+
+from flask import Flask, render_template, redirect, session, flash
 from flask_debugtoolbar import DebugToolbarExtension
-from models import db, connect_db, User
+from werkzeug.exceptions import Unauthorized
 
-
-# from forms import AddPetForm, EditPetForm
+from models import connect_db, db, User, Feedback
+from forms import RegisterForm, LoginForm, FeedbackForm, DeleteForm
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = "abcdef"
-app.config["DEBUG_TB_INTERCEPT_REDIRECTS"] = False
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql:///cupcakes"
+app.config["SQLALCHEMY_DATABASE_URI"] = "postgres:///flask-feedback"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ECHO"] = True
+app.config["SECRET_KEY"] = "shhhhh"
 app.config["DEBUG_TB_INTERCEPT_REDIRECTS"] = False
+
+toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
-# TODO:
 
-# Part 3: Make Routes For Users
-# Make routes for the following:
+@app.route("/")
+def homepage():
+    """Homepage of site; redirect to register."""
 
-# GET /
-# Redirect to /register.
+    return redirect("/register")
 
-# GET /register
-# Show a form that when submitted will register/create a user. This form should accept a username, password, email, first_name, and last_name.
-# Make sure you are using WTForms and that your password input hides the characters that the user is typing!
 
-# POST /register
-# Process the registration form by adding a new user. Then redirect to /secret
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    """Register a user: produce form and handle form submission."""
 
-# GET /login
-# Show a form that when submitted will login a user. This form should accept a username and a password.
-# Make sure you are using WTForms and that your password input hides the characters that the user is typing!
+    if "user_id" in session:
+        return redirect(f"/users/{session['user_id']}")
 
-# POST /login
-# Process the login form, ensuring the user is authenticated and going to /secret if so.
+    form = RegisterForm()
 
-# GET /secret
-# Return the text “You made it!” (don’t worry, we’ll get rid of this soon)
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        first_name = form.first_name.data
+        last_name = form.last_name.data
+        email = form.email.data
+
+        user = User.register(username, password, first_name, last_name, email)
+
+        db.session.commit()
+        session["user_id"] = user.username
+
+        return redirect(f"/users/{user.username}")
+
+    else:
+        return render_template("users/register.html", form=form)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Produce login form or handle login."""
+
+    if "user_id" in session:
+        return redirect(f"/users/{session['user_id']}")
+
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+
+        user = User.authenticate(username, password)  # <User> or False
+        if user:
+            session["user_id"] = user.username
+            return redirect(f"/users/{user.username}")
+        else:
+            form.username.errors = ["Invalid username/password."]
+            return render_template("users/login.html", form=form)
+
+    return render_template("users/login.html", form=form)
+
+
+@app.route("/logout")
+def logout():
+    """Logout route."""
+
+    session.pop("user_id")
+    return redirect("/login")
+
+
+@app.route("/users/<username>")
+def show_user(username):
+    """Example page for logged-in-users."""
+
+    if "user_id" not in session or username != session["user_id"]:
+        raise Unauthorized()
+
+    user = User.query.get(username)
+    form = DeleteForm()
+
+    return render_template("users/show.html", user=user, form=form)
+
+
+@app.route("/users/<username>/delete", methods=["POST"])
+def remove_user(username):
+    """Remove user nad redirect to login."""
+    if "user_id" not in session:
+        flash("Please login first!", "danger")
+        return redirect("/")
+
+    user = User.query.get(username)
+    db.session.delete(user)
+    db.session.commit()
+    session.pop("user_id")
+
+    return redirect("/login")
+
+
+@app.route("/users/<username>/feedback/new", methods=["GET", "POST"])
+def new_feedback(username):
+    """Show add-feedback form and process it."""
+
+    if "user_id" not in session or username != session["user_id"]:
+        raise Unauthorized()
+
+    form = FeedbackForm()
+
+    if form.validate_on_submit():
+        title = form.title.data
+        content = form.content.data
+
+        feedback = Feedback(
+            title=title,
+            content=content,
+            username=username,
+        )
+
+        db.session.add(feedback)
+        db.session.commit()
+
+        return redirect(f"/users/{feedback.username}")
+
+    else:
+        return render_template("feedback/new.html", form=form)
+
+
+@app.route("/feedback/<int:feedback_id>/update", methods=["GET", "POST"])
+def update_feedback(feedback_id):
+    """Show update-feedback form and process it."""
+
+    feedback = Feedback.query.get(feedback_id)
+
+    if "user_id" not in session or feedback.username != session["user_id"]:
+        raise Unauthorized()
+
+    form = FeedbackForm(obj=feedback)
+
+    if form.validate_on_submit():
+        feedback.title = form.title.data
+        feedback.content = form.content.data
+
+        db.session.commit()
+
+        return redirect(f"/users/{feedback.username}")
+
+    return render_template("/feedback/edit.html", form=form, feedback=feedback)
+
+
+@app.route("/feedback/<int:feedback_id>/delete", methods=["POST"])
+def delete_feedback(feedback_id):
+    """Delete feedback."""
+
+    feedback = Feedback.query.get(feedback_id)
+    if "user_id" not in session or feedback.username != session["user_id"]:
+        raise Unauthorized()
+
+    form = DeleteForm()
+
+    if form.validate_on_submit():
+        db.session.delete(feedback)
+        db.session.commit()
+
+    return redirect(f"/users/{feedback.username}")

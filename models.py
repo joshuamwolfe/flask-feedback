@@ -1,10 +1,17 @@
 """Models for Feedback app."""
 
 from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from sqlalchemy.orm import backref
 
+bcrypt = Bcrypt()
 db = SQLAlchemy()
 
-DEFAULT_IMAGE = ""
+
+def connect_db(app):
+    """ Connect db to Flask App """
+    db.app = app
+    db.init_app(app)
 
 
 class User(db.Model):
@@ -16,31 +23,53 @@ class User(db.Model):
     password = db.Column(db.Text, nullable=False)
     email = db.Column(db.String(50), nullable=False, unique=True)
     first_name = db.Column(db.String(30), nullable=False)
-    last_name = db.Column(db.string(30), nullable=False)
+    last_name = db.Column(db.String(30), nullable=False)
 
-    def serialize(self):
-        """Serialize User."""
-        return {
-            "username": self.username,
-            "password": self.password,
-            "email": self.email,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-        }
+    feedback = db.relationship("Feedback", backref="user", cascade="all,delete")
 
-    def __rep__(self):
-        message = f"<User {self.id} email={self.email} first_name={self.first_name} last_name={self.last_name}>"
-        return message
+    @classmethod
+    def register(cls, username, password, first_name, last_name, email):
+        """Register a user"""
+
+        hashed = bcrypt.generate_password_hash(password)
+        hashed_utf8 = hashed.decode("utf8")
+        user = cls(
+            username=username,
+            password=hashed_utf8,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+        )
+
+        db.session.add(user)
+        return user
+
+    @classmethod
+    def authenticate(cls, username, pwd):
+        """Validate that user exists & password is correct.
+
+        Return user if valid; else return False.
+        """
+
+        u = User.query.filter_by(username=username).first()
+
+        if u and bcrypt.check_password_hash(u.password, pwd):
+            # return user instance
+            return u
+        else:
+            return False
 
 
-def connect_db(app):
-    db.app = app
-    db.init_app(app)
+class Feedback(db.Model):
+    """Feedback Model"""
 
-# TODO:
+    __tablename__ = "feedback"
 
-# username - a unique primary key that is no longer than 20 characters. --DONE
-# password - a not-nullable column that is text --DONE
-# email - a not-nullable column that is unique and no longer than 50 characters.--DONE
-# first_name - a not-nullable column that is no longer than 30 characters.--DONE
-# last_name - a not-nullable column that is no longer than 30 characters.--DONE
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    username = db.Column(
+        db.String(20),
+        db.ForeignKey("users.username"),
+        nullable=False,
+    )
