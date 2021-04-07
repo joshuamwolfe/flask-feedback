@@ -1,24 +1,19 @@
-{% extends 'base.html' %}
-
-{% block content %}
+{% extends 'base.html' %} {% block content %}
 
 <p class="lead">Register below to join our service!</p>
 <form method="post">
-    {{ form.hidden_tag() }}
+  {{ form.hidden_tag() }} {% for field in form if field.widget.input_type !=
+  'hidden' %}
 
-    {% for field in form if field.widget.input_type != 'hidden' %}
-
-    <p>
-        {{ field.label }}
-        {{ field(class_='form-control') }}
-
-        {% for error in field.errors %}
-        <span class="form-text text-danger">{{ error }}</span>
-        {% endfor %}
-    </p>
-
+  <p>
+    {{ field.label }} {{ field(class_='form-control') }} {% for error in
+    field.errors %}
+    <span class="form-text text-danger">{{ error }}</span>
     {% endfor %}
+  </p>
 
-    <button class="btn btn-success" type="submit">Register</button>
+  {% endfor %}
+
+  <button class="btn btn-success" type="submit">Register</button>
 </form>
 {% endblock %}
